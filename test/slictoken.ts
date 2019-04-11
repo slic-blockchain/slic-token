@@ -27,14 +27,53 @@ contract("SlicToken", (accounts) => {
         assert.strictEqual(totalSupply.cmp(new BN(15625000).mul(new BN(10).pow(decimals))), 0);
     });
 
-    it('second deployment: should mint 12500000 tokens for the second deployment', async () => {
+    it('deployment: should mint the correct amount of tokens for all and each deployment', async () => {
         // slic_main = await SlicToken.deployed();
         await slic_main.createDeploymentToken(1, {from: accounts[0]});
         await slic_main.createDeploymentToken(2, {from: accounts[0]});
-        const totalSupply = await slic_main.totalSupply();
-        const decimals = await slic_main.decimals.call();
+        let totalSupply = await slic_main.totalSupply();
+        let decimals = await slic_main.decimals.call();
 
         assert.strictEqual(totalSupply.cmp(new BN(15625000 + 12500000).mul(new BN(10).pow(decimals))), 0);
+
+        for(var i = 3; i <= 60; i++) {
+            await slic_main.createDeploymentToken(i, {from: accounts[0]});
+            if(i == 3 || i == 10) {
+                const subtokenR2a = await slic_main.deploymentTokens.call(i);
+                const slic_subR2a = await SlicDeploymentToken.at(subtokenR2a);
+                const totalSupply = await slic_subR2a.totalSupply();
+                const decimals = await slic_subR2a.decimals.call();
+
+                assert.strictEqual(totalSupply.cmp(new BN(12500000).mul(new BN(10).pow(decimals))), 0);
+            }
+            if(i == 11 || i == 20) {
+                const subtokenR2b = await slic_main.deploymentTokens.call(i);
+                const slic_subR2b = await SlicDeploymentToken.at(subtokenR2b);
+                const totalSupply = await slic_subR2b.totalSupply();
+                const decimals = await slic_subR2b.decimals.call();
+
+                assert.strictEqual(totalSupply.cmp(new BN(9765625).mul(new BN(10).pow(decimals))), 0);
+            }
+            if(i == 21 || i == 40) {
+                const subtokenR3 = await slic_main.deploymentTokens.call(i);
+                const slic_subR3 = await SlicDeploymentToken.at(subtokenR3);
+                const totalSupply = await slic_subR3.totalSupply();
+                const decimals = await slic_subR3.decimals.call();
+
+                assert.strictEqual(totalSupply.cmp(new BN(7812500).mul(new BN(10).pow(decimals))), 0);
+            }
+            if(i == 41 || i == 60) {
+                const subtokenR4 = await slic_main.deploymentTokens.call(i);
+                const slic_subR4 = await SlicDeploymentToken.at(subtokenR4);
+                const totalSupply = await slic_subR4.totalSupply();
+                const decimals = await slic_subR4.decimals.call();
+
+                assert.strictEqual(totalSupply.cmp(new BN(7812500).mul(new BN(10).pow(decimals))), 0);
+            }
+        }
+
+        totalSupply = await slic_main.totalSupply();
+        assert.strictEqual(totalSupply.cmp(new BN(507031250).mul(new BN(10).pow(decimals))), 0);
     });
 
     it('second deployment: should distribute 1000 subtokens from the second deployment to acc[1]', async () => {
