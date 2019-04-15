@@ -18,13 +18,13 @@ contract("SlicToken", (accounts) => {
         assert.strictEqual(totalSupply.toNumber(), 0);
     });
 
-    it('first deployment: should mint 15625000 tokens for the first deployment', async () => {
+    it('first deployment: should mint 16429638 tokens for the first deployment', async () => {
         // slic_main = await SlicToken.deployed();
         await slic_main.createDeploymentToken(1, {from: accounts[0]});
         const totalSupply = await slic_main.totalSupply();
         const decimals = await slic_main.decimals.call();
 
-        assert.strictEqual(totalSupply.cmp(new BN(15625000).mul(new BN(10).pow(decimals))), 0);
+        assert.strictEqual(totalSupply.cmp(new BN(16429638).mul(new BN(10).pow(decimals))), 0);
     });
 
     it('deployment: should mint the correct amount of tokens for all and each deployment', async () => {
@@ -34,7 +34,7 @@ contract("SlicToken", (accounts) => {
         let totalSupply = await slic_main.totalSupply();
         let decimals = await slic_main.decimals.call();
 
-        assert.strictEqual(totalSupply.cmp(new BN(15625000 + 12500000).mul(new BN(10).pow(decimals))), 0);
+        assert.strictEqual(totalSupply.cmp(new BN(16429638 + 12500000).mul(new BN(10).pow(decimals))), 0);
 
         for(var i = 3; i <= 60; i++) {
             await slic_main.createDeploymentToken(i, {from: accounts[0]});
@@ -68,12 +68,12 @@ contract("SlicToken", (accounts) => {
                 const totalSupply = await slic_subR4.totalSupply();
                 const decimals = await slic_subR4.decimals.call();
 
-                assert.strictEqual(totalSupply.cmp(new BN(7812500).mul(new BN(10).pow(decimals))), 0);
+                assert.strictEqual(totalSupply.cmp(new BN(6250000).mul(new BN(10).pow(decimals))), 0);
             }
         }
 
         totalSupply = await slic_main.totalSupply();
-        assert.strictEqual(totalSupply.cmp(new BN(507031250).mul(new BN(10).pow(decimals))), 0);
+        assert.strictEqual(totalSupply.cmp(new BN(507835888).mul(new BN(10).pow(decimals))), 0);
     });
 
     it('second deployment: should distribute 1000 subtokens from the second deployment to acc[1]', async () => {

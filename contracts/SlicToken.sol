@@ -590,7 +590,7 @@ contract SlicToken is BlacklistToken {
 
         uint256 mintAmount;
         if(deploymentId == 1) {
-            mintAmount = 15625000 * (10 ** uint256(decimals()));
+            mintAmount = 16429638 * (10 ** uint256(decimals()));
         } else if (deploymentId <= 10) {
             mintAmount = 12500000 * (10 ** uint256(decimals()));
         } else if (deploymentId <= 20) {
