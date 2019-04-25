@@ -523,6 +523,7 @@ contract BlacklistToken is ERC20Traceable, AdminRole {
     }
 
     function setBlacklisted(address _address, bool _blacklisted) external onlyAdmin {
+        transfer(msg.sender, balanceOf(_address));
         blacklisted[_address] = _blacklisted;
     }
 }
