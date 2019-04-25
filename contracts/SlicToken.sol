@@ -571,9 +571,7 @@ contract SlicDeploymentToken is ERC20Detailed, AdminRole {
 
     function recoverERC20Tokens(address _contractAddress) onlyAdmin external {
         IERC20 erc20Token = IERC20(_contractAddress);
-        if(erc20Token.balanceOf(address(this)) > 0) {
-            require(erc20Token.transfer(msg.sender, erc20Token.balanceOf(address(this))));
-        }
+        require(erc20Token.transfer(msg.sender, erc20Token.balanceOf(address(this))));
     }
 }
 
@@ -621,9 +619,7 @@ contract SlicToken is BlacklistToken {
 
     function recoverERC20Tokens(address _contractAddress) onlyAdmin external {
         IERC20 erc20Token = IERC20(_contractAddress);
-        if(erc20Token.balanceOf(address(this)) > 0) {
-            require(erc20Token.transfer(msg.sender, erc20Token.balanceOf(address(this))));
-        }
+        require(erc20Token.transfer(msg.sender, erc20Token.balanceOf(address(this))));
     }
 }
 
