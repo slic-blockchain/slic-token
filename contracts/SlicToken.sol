@@ -405,6 +405,7 @@ contract ERC20Traceable is ERC20Detailed {
                     address lastHolder = holdersSet[holdersSet.length - 1];
                     uint256 lastHolderIndex = holdersIndices[lastHolder];
                     holdersSet[senderIndex - 1] = holdersSet[lastHolderIndex - 1];
+                    holdersIndices[lastHolder] = 0;
                 }
                 delete holdersSet[holdersSet.length - 1];
                 holdersSet.length = holdersSet.length - 1;
