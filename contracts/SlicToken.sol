@@ -1,4 +1,4 @@
-pragma solidity ^0.5.0;
+pragma solidity 0.5.0;
 
 /**
  * @title SafeMath
@@ -390,8 +390,8 @@ contract ERC20Traceable is ERC20Detailed {
     address[] internal holdersSet;
     mapping(address => uint256) internal holdersIndices;
 
-    function _traceRecipient(address to) internal {
-        if(holdersIndices[to] == 0) {
+    function _traceRecipient(address to, uint256 value) internal {
+        if(value != 0 && holdersIndices[to] == 0) {
             holdersSet.push(to);
             holdersIndices[to] = holdersSet.length;
         }
@@ -399,8 +399,8 @@ contract ERC20Traceable is ERC20Detailed {
 
     function _traceSender(address from, uint256 value) internal {
         if(balanceOf(from) == value) {
-            if(holdersIndices[from] != 0) {
-                uint256 senderIndex = holdersIndices[from];
+            uint256 senderIndex = holdersIndices[from];
+            if(senderIndex != 0) {
                 if(senderIndex < holdersSet.length) {
                     address lastHolder = holdersSet[holdersSet.length - 1];
                     uint256 lastHolderIndex = holdersIndices[lastHolder];
@@ -415,14 +415,14 @@ contract ERC20Traceable is ERC20Detailed {
     }
 
     function _trace(address from, address to, uint256 value) internal {
-        _traceRecipient(to);
+        _traceRecipient(to, value);
         if(from != address(0) && from != to) {
             _traceSender(from, value);
         }
     }
 
     function _mint(address account, uint256 value) internal {
-        _traceRecipient(account);
+        _traceRecipient(account, value);
         super._mint(account, value);
     }
 
@@ -452,44 +452,6 @@ contract ERC20Traceable is ERC20Detailed {
 }
 
 /**
- * @title Whitelist ERC20 token
- *
- * @dev Whitelisted-only token holders.
- */
-contract WhitelistToken is ERC20Traceable, AdminRole {
-    mapping(address => bool) public whitelisted;
-
-    function _mint(address account, uint256 value) internal {
-        require(whitelisted[account]);
-        super._mint(account, value);
-    }
-
-    function _burn(address account, uint256 value) internal {
-        require(whitelisted[account]);
-        super._burn(account, value);
-    }
-
-    function _burnFrom(address account, uint256 value) internal {
-        require(whitelisted[account]);
-        super._burn(account, value);
-    }
-
-    function transferFrom(address from, address to, uint256 value) public returns (bool) {
-        require(whitelisted[to]);
-        return super.transferFrom(from, to, value);
-    }
-
-    function transfer(address to, uint256 value) public returns (bool) {
-        require(whitelisted[to]);
-        return super.transfer(to, value);
-    }
-
-    function setWhitelisted(address _address, bool _whitelisted) external onlyAdmin {
-        whitelisted[_address] = _whitelisted;
-    }
-}
-
-/**
  * @title Blacklist ERC20 token
  *
  * @dev Any address can be a token holder, unless blacklisted.
@@ -498,31 +460,29 @@ contract BlacklistToken is ERC20Traceable, AdminRole {
     mapping(address => bool) public blacklisted;
 
     function _mint(address account, uint256 value) internal {
-        require(!blacklisted[account]);
+        require(!blacklisted[account], "This address is blacklisted");
         super._mint(account, value);
     }
 
     function _burn(address account, uint256 value) internal {
-        require(!blacklisted[account]);
+        require(!blacklisted[account], "This address is blacklisted");
         super._burn(account, value);
     }
 
     function _burnFrom(address account, uint256 value) internal {
-        require(!blacklisted[account]);
+        require(!blacklisted[account], "This address is blacklisted");
         super._burn(account, value);
     }
 
     function transferFrom(address from, address to, uint256 value) public returns (bool) {
-        require(!blacklisted[to]);
-        return super.transferFrom(from, to, value);
+        return !blacklisted[to] && super.transferFrom(from, to, value);
     }
 
     function transfer(address to, uint256 value) public returns (bool) {
-        require(!blacklisted[to]);
-        return super.transfer(to, value);
+        return !blacklisted[to] && super.transfer(to, value);
     }
 
-    function setBlacklisted(address _address, bool _blacklisted) external onlyAdmin {
+    function setBlacklisted(address _address, bool _blacklisted) public onlyAdmin {
         transfer(msg.sender, balanceOf(_address));
         blacklisted[_address] = _blacklisted;
     }
@@ -535,7 +495,7 @@ contract SlicDeploymentToken is ERC20Detailed, AdminRole {
 
     constructor(address _admin, uint8 _id, uint256 _mintAmount) public
                 ERC20Detailed(concat("SLiC Deployment Token ", _id), concat("SLIC", _id), 18) {
-        require(_id > 0 && _id <= 60);
+        require(_id > 0 && _id <= 60, "Invalid deployment ID");
         id = _id;
         slicToken = msg.sender;
         addAdmin(_admin);
@@ -554,8 +514,9 @@ contract SlicDeploymentToken is ERC20Detailed, AdminRole {
     }
 
     function redeem(address account) public {
-        require(msg.sender == slicToken);
-        require(unlockTime != 0 && now > unlockTime);
+        require(msg.sender == slicToken, "This method should not be called directly");
+        require(unlockTime != 0, "Lockup countdown has not started yet");
+        require(now > unlockTime, "Lockup countdown has not finished yet");
 
         uint256 balance = balanceOf(account);
         if(balance > 0) {
@@ -565,13 +526,13 @@ contract SlicDeploymentToken is ERC20Detailed, AdminRole {
     }
 
     function startLockUpCountdown() external onlyAdmin {
-        require(unlockTime == 0);
+        require(unlockTime == 0, "Lockup countdown already started");
         unlockTime = now + 182 days;
     }
 
     function recoverERC20Tokens(address _contractAddress) onlyAdmin external {
         IERC20 erc20Token = IERC20(_contractAddress);
-        require(erc20Token.transfer(msg.sender, erc20Token.balanceOf(address(this))));
+        require(erc20Token.transfer(msg.sender, erc20Token.balanceOf(address(this))), "Token transfer/recovery failed");
     }
 }
 
@@ -584,9 +545,9 @@ contract SlicToken is BlacklistToken {
     constructor() public ERC20Detailed("SLiC", "SLIC", 18) {}
 
     function createDeploymentToken(uint8 deploymentId) external onlyAdmin {
-        require(deploymentId > 0 && deploymentId <= 60);
-        require(address(deploymentTokens[deploymentId]) == address(0));
-        require(deploymentId == 1 || address(deploymentTokens[deploymentId - 1]) != address(0));
+        require(deploymentId > 0 && deploymentId <= 60, "Invalid deployment ID");
+        require(address(deploymentTokens[deploymentId]) == address(0), "Deployment already created");
+        require(deploymentId == 1 || address(deploymentTokens[deploymentId - 1]) != address(0), "Deployment creation should be sequential");
 
         uint256 mintAmount;
         if(deploymentId == 1) {
@@ -619,7 +580,7 @@ contract SlicToken is BlacklistToken {
 
     function recoverERC20Tokens(address _contractAddress) onlyAdmin external {
         IERC20 erc20Token = IERC20(_contractAddress);
-        require(erc20Token.transfer(msg.sender, erc20Token.balanceOf(address(this))));
+        require(erc20Token.transfer(msg.sender, erc20Token.balanceOf(address(this))), "Token transfer/recovery failed");
     }
 }
 
