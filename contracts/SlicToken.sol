@@ -452,39 +452,41 @@ contract ERC20Traceable is ERC20Detailed {
 }
 
 /**
- * @title Blacklist ERC20 token
+ * @title Freezable ERC20 token
  *
- * @dev Any address can be a token holder, unless blacklisted.
+ * @dev All tokens are transferrable, unless token holder address is frozen by an admin.
  */
-contract BlacklistToken is ERC20Traceable, AdminRole {
-    mapping(address => bool) public blacklisted;
-
-    function _mint(address account, uint256 value) internal {
-        require(!blacklisted[account], "This address is blacklisted");
-        super._mint(account, value);
-    }
+contract FreezableToken is ERC20Traceable, AdminRole {
+    mapping(address => bool) public frozen;
+    event Freeze(address indexed account);
+    event Unfreeze(address indexed account);
 
     function _burn(address account, uint256 value) internal {
-        require(!blacklisted[account], "This address is blacklisted");
+        require(!frozen[account]);
         super._burn(account, value);
     }
 
     function _burnFrom(address account, uint256 value) internal {
-        require(!blacklisted[account], "This address is blacklisted");
+        require(!frozen[account]);
         super._burn(account, value);
     }
 
     function transferFrom(address from, address to, uint256 value) public returns (bool) {
-        return !blacklisted[to] && super.transferFrom(from, to, value);
+        return !frozen[from] && super.transferFrom(from, to, value);
     }
 
     function transfer(address to, uint256 value) public returns (bool) {
-        return !blacklisted[to] && super.transfer(to, value);
+        return !frozen[msg.sender] && super.transfer(to, value);
     }
 
-    function setBlacklisted(address _address, bool _blacklisted) public onlyAdmin {
-        transfer(msg.sender, balanceOf(_address));
-        blacklisted[_address] = _blacklisted;
+    function freeze(address _address, bool setFrozen) public onlyAdmin {
+        if(frozen[_address] && !setFrozen) {
+            frozen[_address] = setFrozen;
+            emit Unfreeze(_address);
+        } else if(!frozen[_address] && setFrozen) {
+            frozen[_address] = setFrozen;
+            emit Freeze(_address);
+        }
     }
 }
 
@@ -525,12 +527,12 @@ contract SlicDeploymentToken is ERC20Detailed, AdminRole {
         }
     }
 
-    function startLockUpCountdown() external onlyAdmin {
+    function startLockUpCountdown() public onlyAdmin {
         require(unlockTime == 0, "Lockup countdown already started");
         unlockTime = now + 182 days;
     }
 
-    function recoverERC20Tokens(address _contractAddress) onlyAdmin external {
+    function recoverERC20Tokens(address _contractAddress) onlyAdmin public {
         IERC20 erc20Token = IERC20(_contractAddress);
         require(erc20Token.transfer(msg.sender, erc20Token.balanceOf(address(this))), "Token transfer/recovery failed");
     }
@@ -539,12 +541,12 @@ contract SlicDeploymentToken is ERC20Detailed, AdminRole {
 /**
  * @title SLiC token
  */
-contract SlicToken is BlacklistToken {
+contract SlicToken is FreezableToken {
     mapping(uint8 => SlicDeploymentToken) public deploymentTokens;
 
     constructor() public ERC20Detailed("SLiC", "SLIC", 18) {}
 
-    function createDeploymentToken(uint8 deploymentId) external onlyAdmin {
+    function createDeploymentToken(uint8 deploymentId) public onlyAdmin {
         require(deploymentId > 0 && deploymentId <= 60, "Invalid deployment ID");
         require(address(deploymentTokens[deploymentId]) == address(0), "Deployment already created");
         require(deploymentId == 1 || address(deploymentTokens[deploymentId - 1]) != address(0), "Deployment creation should be sequential");
@@ -570,15 +572,15 @@ contract SlicToken is BlacklistToken {
         deploymentTokens[deploymentId].redeem(msg.sender);
     }
 
-    function forceRedeemUnlockedTokens(uint8 deploymentId, address account) external onlyAdmin {
+    function forceRedeemUnlockedTokens(uint8 deploymentId, address account) public onlyAdmin {
         deploymentTokens[deploymentId].redeem(account);
     }
 
-    function distribute(address to, uint256 amount, uint8 deploymentId) external onlyAdmin {
+    function distribute(address to, uint256 amount, uint8 deploymentId) public onlyAdmin {
         deploymentTokens[deploymentId].transfer(to, amount);
     }
 
-    function recoverERC20Tokens(address _contractAddress) onlyAdmin external {
+    function recoverERC20Tokens(address _contractAddress) onlyAdmin public {
         IERC20 erc20Token = IERC20(_contractAddress);
         require(erc20Token.transfer(msg.sender, erc20Token.balanceOf(address(this))), "Token transfer/recovery failed");
     }

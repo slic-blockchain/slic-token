@@ -144,6 +144,12 @@ contract("SlicToken", (accounts) => {
         holdersSet = await slic_main.getHolders.call({from: accounts[2]});
         assert.isFalse(holdersSet.includes(accounts[4]));
         assert.isTrue(holdersSet.includes(accounts[6]));
+
+        // zero tokens transfer does not add the receiver to the holders set
+        await slic_main.distribute(accounts[7], 0, 1, {from: accounts[0]});
+        await slic_main.redeemUnlockedTokens(1, {from: accounts[7]});
+        holdersSet = await slic_main.getHolders.call({from: accounts[1]});
+        assert.isFalse(holdersSet.includes(accounts[7]));
     });
 });
 
