@@ -403,9 +403,8 @@ contract ERC20Traceable is ERC20Detailed {
             if(senderIndex != 0) {
                 if(senderIndex < holdersSet.length) {
                     address lastHolder = holdersSet[holdersSet.length - 1];
-                    uint256 lastHolderIndex = holdersIndices[lastHolder];
-                    holdersSet[senderIndex - 1] = holdersSet[lastHolderIndex - 1];
-                    holdersIndices[lastHolder] = 0;
+                    holdersSet[senderIndex - 1] = lastHolder;
+                    holdersIndices[lastHolder] = senderIndex;
                 }
                 delete holdersSet[holdersSet.length - 1];
                 holdersSet.length = holdersSet.length - 1;
@@ -490,17 +489,16 @@ contract FreezableToken is ERC20Traceable, AdminRole {
     }
 }
 
-contract SlicDeploymentToken is ERC20Detailed, AdminRole {
+contract SlicDeploymentToken is ERC20Detailed {
     uint256 public unlockTime = 0;
     uint8 public id;
     address public slicToken;
 
-    constructor(address _admin, uint8 _id, uint256 _mintAmount) public
+    constructor(uint8 _id, uint256 _mintAmount) public
                 ERC20Detailed(concat("SLiC Deployment Token ", _id), concat("SLIC", _id), 18) {
         require(_id > 0 && _id <= 60, "Invalid deployment ID");
         id = _id;
         slicToken = msg.sender;
-        addAdmin(_admin);
         _mint(slicToken, _mintAmount);
     }
 
@@ -527,14 +525,10 @@ contract SlicDeploymentToken is ERC20Detailed, AdminRole {
         }
     }
 
-    function startLockUpCountdown() public onlyAdmin {
+    function startLockUpCountdown() public {
+        require(msg.sender == slicToken, "This method should not be called directly");
         require(unlockTime == 0, "Lockup countdown already started");
         unlockTime = now + 182 days;
-    }
-
-    function recoverERC20Tokens(address _contractAddress) onlyAdmin public {
-        IERC20 erc20Token = IERC20(_contractAddress);
-        require(erc20Token.transfer(msg.sender, erc20Token.balanceOf(address(this))), "Token transfer/recovery failed");
     }
 }
 
@@ -543,10 +537,22 @@ contract SlicDeploymentToken is ERC20Detailed, AdminRole {
  */
 contract SlicToken is FreezableToken {
     mapping(uint8 => SlicDeploymentToken) public deploymentTokens;
+    address public icoManager;
 
-    constructor() public ERC20Detailed("SLiC", "SLIC", 18) {}
+    modifier onlyIcoManager() {
+        require(msg.sender == icoManager);
+        _;
+    }
 
-    function createDeploymentToken(uint8 deploymentId) public onlyAdmin {
+    constructor(address _tokenAdmin) public ERC20Detailed("SLiC", "SLIC", 18) {
+        require(_tokenAdmin != address(0));
+
+        icoManager = msg.sender;
+        addAdmin(_tokenAdmin);
+        renounceAdmin();
+    }
+
+    function createDeploymentToken(uint8 deploymentId) public onlyIcoManager {
         require(deploymentId > 0 && deploymentId <= 60, "Invalid deployment ID");
         require(address(deploymentTokens[deploymentId]) == address(0), "Deployment already created");
         require(deploymentId == 1 || address(deploymentTokens[deploymentId - 1]) != address(0), "Deployment creation should be sequential");
@@ -564,7 +570,7 @@ contract SlicToken is FreezableToken {
             mintAmount = 6250000 * (10 ** uint256(decimals()));
         }
 
-        deploymentTokens[deploymentId] = new SlicDeploymentToken(msg.sender, deploymentId, mintAmount);
+        deploymentTokens[deploymentId] = new SlicDeploymentToken(deploymentId, mintAmount);
         _mint(address(deploymentTokens[deploymentId]), mintAmount);
     }
 
@@ -572,17 +578,20 @@ contract SlicToken is FreezableToken {
         deploymentTokens[deploymentId].redeem(msg.sender);
     }
 
-    function forceRedeemUnlockedTokens(uint8 deploymentId, address account) public onlyAdmin {
+    function forceRedeemUnlockedTokens(uint8 deploymentId, address account) public onlyIcoManager {
         deploymentTokens[deploymentId].redeem(account);
     }
 
-    function distribute(address to, uint256 amount, uint8 deploymentId) public onlyAdmin {
+    function distribute(address to, uint256 amount, uint8 deploymentId) public onlyIcoManager {
         deploymentTokens[deploymentId].transfer(to, amount);
     }
 
-    function recoverERC20Tokens(address _contractAddress) onlyAdmin public {
+    function startLockUpCountdown(uint8 deploymentId) public onlyIcoManager {
+        deploymentTokens[deploymentId].startLockUpCountdown();
+    }
+
+    function recoverERC20Tokens(address _contractAddress) public onlyAdmin {
         IERC20 erc20Token = IERC20(_contractAddress);
         require(erc20Token.transfer(msg.sender, erc20Token.balanceOf(address(this))), "Token transfer/recovery failed");
     }
 }
-
