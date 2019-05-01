@@ -10,13 +10,16 @@ let slic_main;
 
 contract("SlicToken", (accounts) => {
     let icoManagerAddress = accounts[0];
-    let adminAddress = accounts[1];
+
+    let adminAddress1 = accounts[1];
+    let adminAddress2 = accounts[8];
+    let adminAddress3 = accounts[9];
     beforeEach(async () => {
-        slic_main = await SlicToken.new(adminAddress, { from: icoManagerAddress });
+        slic_main = await SlicToken.new(adminAddress1, adminAddress2, adminAddress3, { from: icoManagerAddress });
+        await slic_main.initMultisigAdmin({from: icoManagerAddress});
     });
 
     it('creation: should create an initial total supply of 0', async () => {
-        // slic_main = await SlicToken.deployed();
         const totalSupply = await slic_main.totalSupply.call();
         assert.strictEqual(totalSupply.toNumber(), 0);
     });
