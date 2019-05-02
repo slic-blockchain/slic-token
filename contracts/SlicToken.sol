@@ -573,10 +573,10 @@ contract MultiSigAdmin {
                 token.freeze(action.addressParam, action.boolParam);
             }
         } else {
-            require(proposalsByBlock[_proposalBlock].proposer == address(0));
+            require(proposalsByBlock[block.number].proposer == address(0));
 
             ActionProposal memory action = ActionProposal(1, msg.sender, _address, _setFrozen);
-            proposalsByBlock[_proposalBlock] = action;
+            proposalsByBlock[block.number] = action;
         }
     }
 
@@ -591,10 +591,10 @@ contract MultiSigAdmin {
                 token.transfer(msg.sender, token.balanceOf(address(this)));
             }
         } else {
-            require(proposalsByBlock[_proposalBlock].proposer == address(0));
+            require(proposalsByBlock[block.number].proposer == address(0));
 
             ActionProposal memory action = ActionProposal(2, msg.sender, _address, false);
-            proposalsByBlock[_proposalBlock] = action;
+            proposalsByBlock[block.number] = action;
         }
     }
 
@@ -608,10 +608,10 @@ contract MultiSigAdmin {
                 token.addAdmin(action.addressParam);
             }
         } else {
-            require(proposalsByBlock[_proposalBlock].proposer == address(0));
+            require(proposalsByBlock[block.number].proposer == address(0));
 
             ActionProposal memory action = ActionProposal(3, msg.sender, _address, false);
-            proposalsByBlock[_proposalBlock] = action;
+            proposalsByBlock[block.number] = action;
         }
     }
 
@@ -623,10 +623,10 @@ contract MultiSigAdmin {
                 token.renounceAdmin();
             }
         } else {
-            require(proposalsByBlock[_proposalBlock].proposer == address(0));
+            require(proposalsByBlock[block.number].proposer == address(0));
 
             ActionProposal memory action = ActionProposal(4, msg.sender, address(0), false);
-            proposalsByBlock[_proposalBlock] = action;
+            proposalsByBlock[block.number] = action;
         }
     }
 }
