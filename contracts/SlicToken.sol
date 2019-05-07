@@ -588,7 +588,7 @@ contract MultiSigAdmin {
 
                 proposalsByBlock[_proposalBlock] = ActionProposal(0, address(0), address(0), false);
                 token.recoverERC20Tokens(action.addressParam);
-                token.transfer(msg.sender, token.balanceOf(address(this)));
+                IERC20(action.addressParam).transfer(msg.sender, IERC20(action.addressParam).balanceOf(address(this)));
             }
         } else {
             require(proposalsByBlock[block.number].proposer == address(0));
@@ -637,28 +637,32 @@ contract MultiSigAdmin {
 contract SlicToken is FreezableToken {
     mapping(uint8 => SlicDeploymentToken) public deploymentTokens;
     address public icoManager;
-    address public multiSigAdmin1;
-    address public multiSigAdmin2;
-    address public multiSigAdmin3;
+    address public admin1;
+    address public admin2;
+    address public admin3;
+    MultiSigAdmin public multiSigAdmin;
 
     modifier onlyIcoManager() {
         require(msg.sender == icoManager);
         _;
     }
 
-    constructor(address _multiSigAdmin1, address _multiSigAdmin2, address _multiSigAdmin3) public ERC20Detailed("SLiC", "SLIC", 18) {
-        require(_multiSigAdmin1 != address(0));
-        require(_multiSigAdmin2 != address(0));
-        require(_multiSigAdmin3 != address(0));
-        multiSigAdmin1 = _multiSigAdmin1;
-        multiSigAdmin2 = _multiSigAdmin2;
-        multiSigAdmin3 = _multiSigAdmin3;
+    constructor(address _admin1, address _admin2, address _admin3) public ERC20Detailed("SLiC", "SLIC", 18) {
+        require(_admin1 != address(0), "null admin1 address");
+        require(_admin2 != address(0), "null admin2 address");
+        require(_admin3 != address(0), "null admin3 address");
+        require(_admin1 != _admin2 && _admin2 != _admin3 && _admin1 != _admin3, "duplicate admin addresses");
+
+        admin1 = _admin1;
+        admin2 = _admin2;
+        admin3 = _admin3;
 
         icoManager = msg.sender;
     }
 
     function initMultisigAdmin() public onlyIcoManager {
-        addAdmin(address(new MultiSigAdmin(multiSigAdmin1, multiSigAdmin2, multiSigAdmin3)));
+        multiSigAdmin = new MultiSigAdmin(admin1, admin2, admin3);
+        addAdmin(address(multiSigAdmin));
         renounceAdmin();
     }
 

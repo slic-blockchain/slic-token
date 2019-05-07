@@ -3,8 +3,9 @@ const time = require('./helpers/timeHelper');
 const h = require('./helpers/utils');
 
 const SlicToken = artifacts.require("./SlicToken");
+const MultiSigAdmin = artifacts.require("./MultiSigAdmin");
 const SlicDeploymentToken = artifacts.require("./SlicDeploymentToken");
-let slic_main;
+let slic_main, multisig_admin;
 
 
 
@@ -14,9 +15,15 @@ contract("SlicToken", (accounts) => {
     let adminAddress1 = accounts[1];
     let adminAddress2 = accounts[8];
     let adminAddress3 = accounts[9];
+
     beforeEach(async () => {
         slic_main = await SlicToken.new(adminAddress1, adminAddress2, adminAddress3, { from: icoManagerAddress });
         await slic_main.initMultisigAdmin({from: icoManagerAddress});
+        multisig_admin = await MultiSigAdmin.at(await slic_main.multiSigAdmin());
+    });
+
+    it('creation: fails to initialize with duplicate admin addresses', async () => {
+        await h.assertRevert(SlicToken.new(adminAddress1, adminAddress1, adminAddress3, { from: icoManagerAddress }));
     });
 
     it('creation: should create an initial total supply of 0', async () => {
@@ -25,7 +32,6 @@ contract("SlicToken", (accounts) => {
     });
 
     it('first deployment: should mint 16429638 tokens for the first deployment', async () => {
-        // slic_main = await SlicToken.deployed();
         await slic_main.createDeploymentToken(1, {from: icoManagerAddress});
         const totalSupply = await slic_main.totalSupply();
         const decimals = await slic_main.decimals.call();
@@ -178,7 +184,10 @@ contract("SlicToken", (accounts) => {
         let isSuccessfulTransfer = await slic_main.transfer.call(accounts[3], 1, {from: accounts[2]});
         assert.isTrue(isSuccessfulTransfer);
 
-        await slic_main.freeze(accounts[2], true, {from: adminAddress});
+        const freezeTx = await multisig_admin.freeze(accounts[2], true, 0, {from: adminAddress1});
+        const proposalBlockNum = freezeTx.receipt.blockNumber;
+
+        await multisig_admin.freeze(accounts[2], true, proposalBlockNum, {from: adminAddress2});
 
         isFrozen = await slic_main.frozen(accounts[2]);
         assert.isTrue(isFrozen);
@@ -186,7 +195,6 @@ contract("SlicToken", (accounts) => {
         isSuccessfulTransfer = await slic_main.transfer.call(accounts[3], 1, {from: accounts[2]});
         assert.isFalse(isSuccessfulTransfer);
     });
-
 
     it('admin access: no other address can freeze a token holder', async () => {
         await slic_main.createDeploymentToken(1, {from: icoManagerAddress});
@@ -200,7 +208,68 @@ contract("SlicToken", (accounts) => {
         let isFrozen = await slic_main.frozen(accounts[2]);
         assert.isFalse(isFrozen);
 
-        await h.assertRevert(slic_main.freeze(accounts[2], true, {from: accounts[7]}));
+        await h.assertRevert(multisig_admin.freeze(accounts[2], true, 0, {from: accounts[7]}));
+    });
+
+    it('admin access: admin can recover mistakenly sent tokens to the smart contract address', async () => {
+        const another_token = await SlicToken.new(accounts[2], accounts[3], accounts[4], { from: accounts[5] });
+        await another_token.initMultisigAdmin({from: accounts[5]});
+
+        await another_token.createDeploymentToken(1, {from: accounts[5]});
+        await another_token.distribute(accounts[2], 1000, 1, {from: accounts[5]});
+        const subtoken1 = await another_token.deploymentTokens.call(1);
+        const slic_sub1 = await SlicDeploymentToken.at(subtoken1);
+        await another_token.startLockUpCountdown(1, {from: accounts[5]});
+        await time.advanceTimeAndBlock((183 * 24 * 60 * 60));
+        await another_token.redeemUnlockedTokens(1, {from: accounts[2]});
+
+        await another_token.transfer(slic_main.address, 345, {from: accounts[2]});
+
+        let balanceMain = await another_token.balanceOf.call(slic_main.address);
+        let balanceAdmin3 = await another_token.balanceOf.call(accounts[4]);
+        assert.strictEqual(balanceMain.cmp(new BN(345)), 0);
+        assert.strictEqual(balanceAdmin3.cmp(new BN(0)), 0);
+
+        const recoverTx = await multisig_admin.recoverERC20Tokens(another_token.address, 0, {from: adminAddress2});
+        const proposalBlockNum = recoverTx.receipt.blockNumber;
+
+        balanceMain = await another_token.balanceOf.call(slic_main.address);
+        assert.strictEqual(balanceMain.cmp(new BN(345)), 0);
+
+        await multisig_admin.recoverERC20Tokens(another_token.address, proposalBlockNum, {from: adminAddress3});
+
+        balanceMain = await another_token.balanceOf.call(slic_main.address);
+        balanceAdmin3 = await another_token.balanceOf.call(adminAddress3);
+        assert.strictEqual(balanceMain.cmp(new BN(0)), 0);
+        assert.strictEqual(balanceAdmin3.cmp(new BN(345)), 0);
+    });
+
+    it('admin access: admins can add another admin and remove themself', async () => {
+        let newAdmin = accounts[4];
+
+        let isNewAdminAdmin = await slic_main.isAdmin(newAdmin);
+        assert.isFalse(isNewAdminAdmin);
+
+        let addAdminTx = await multisig_admin.addAdmin(newAdmin, 0, {from: adminAddress1});
+        let proposalBlockNum = addAdminTx.receipt.blockNumber;
+
+        isNewAdminAdmin = await slic_main.isAdmin(newAdmin);
+        assert.isFalse(isNewAdminAdmin);
+
+        await multisig_admin.addAdmin(newAdmin, proposalBlockNum, {from: adminAddress3});
+
+        isNewAdminAdmin = await slic_main.isAdmin(newAdmin);
+        assert.isTrue(isNewAdminAdmin);
+
+        let renounceAdminTx = await multisig_admin.renounceAdmin(0, {from: adminAddress2});
+        proposalBlockNum = renounceAdminTx.receipt.blockNumber;
+
+        let isOldAdminAdmin = await slic_main.isAdmin(multisig_admin.address);
+        assert.isTrue(isOldAdminAdmin);
+
+        await multisig_admin.renounceAdmin(proposalBlockNum, {from: adminAddress3});
+        isOldAdminAdmin = await slic_main.isAdmin(multisig_admin.address);
+        assert.isFalse(isOldAdminAdmin);
     });
 });
 
