@@ -471,14 +471,14 @@ contract FreezableToken is ERC20Traceable, AdminRole {
     }
 
     function transferFrom(address from, address to, uint256 value) public returns (bool) {
-        return !frozen[from] && super.transferFrom(from, to, value);
+        return !frozen[from] && !frozen[to] && super.transferFrom(from, to, value);
     }
 
     function transfer(address to, uint256 value) public returns (bool) {
-        return !frozen[msg.sender] && super.transfer(to, value);
+        return !frozen[msg.sender] && !frozen[to] && super.transfer(to, value);
     }
 
-    function freeze(address _address, bool _setFrozen) public onlyAdmin {
+    function toggleFreeze(address _address, bool _setFrozen) public onlyAdmin {
         if(frozen[_address] && !_setFrozen) {
             frozen[_address] = _setFrozen;
             emit Unfreeze(_address);
@@ -563,14 +563,14 @@ contract MultiSigAdmin {
         token = SlicToken(msg.sender);
     }
 
-    function freeze(address _address, bool _setFrozen, uint256 _proposalBlock) public onlyAdmin {
+    function toggleFreeze(address _address, bool _setFrozen, uint256 _proposalBlock) public onlyAdmin {
         if(_proposalBlock != 0) {
             ActionProposal memory action = proposalsByBlock[_proposalBlock];
             if(action.proposer != address(0) && action.proposer != msg.sender && action.actionType == 1) {
                 require(action.addressParam == _address && action.boolParam == _setFrozen);
 
                 proposalsByBlock[_proposalBlock] = ActionProposal(0, address(0), address(0), false);
-                token.freeze(action.addressParam, action.boolParam);
+                token.toggleFreeze(action.addressParam, action.boolParam);
             }
         } else {
             require(proposalsByBlock[block.number].proposer == address(0));

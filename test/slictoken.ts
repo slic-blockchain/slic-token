@@ -184,10 +184,10 @@ contract("SlicToken", (accounts) => {
         let isSuccessfulTransfer = await slic_main.transfer.call(accounts[3], 1, {from: accounts[2]});
         assert.isTrue(isSuccessfulTransfer);
 
-        const freezeTx = await multisig_admin.freeze(accounts[2], true, 0, {from: adminAddress1});
+        const freezeTx = await multisig_admin.toggleFreeze(accounts[2], true, 0, {from: adminAddress1});
         const proposalBlockNum = freezeTx.receipt.blockNumber;
 
-        await multisig_admin.freeze(accounts[2], true, proposalBlockNum, {from: adminAddress2});
+        await multisig_admin.toggleFreeze(accounts[2], true, proposalBlockNum, {from: adminAddress2});
 
         isFrozen = await slic_main.frozen(accounts[2]);
         assert.isTrue(isFrozen);
@@ -208,7 +208,7 @@ contract("SlicToken", (accounts) => {
         let isFrozen = await slic_main.frozen(accounts[2]);
         assert.isFalse(isFrozen);
 
-        await h.assertRevert(multisig_admin.freeze(accounts[2], true, 0, {from: accounts[7]}));
+        await h.assertRevert(multisig_admin.toggleFreeze(accounts[2], true, 0, {from: accounts[7]}));
     });
 
     it('admin access: admin can recover mistakenly sent tokens to the smart contract address', async () => {
