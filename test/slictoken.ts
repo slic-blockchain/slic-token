@@ -181,7 +181,7 @@ contract("SlicToken", (accounts) => {
         let isFrozen = await slic_main.frozen(accounts[2]);
         assert.isFalse(isFrozen);
 
-        let isSuccessfulTransfer = await slic_main.transfer.call(accounts[3], 1, {from: accounts[2]});
+        let isSuccessfulTransfer = await slic_main.transfer.call(accounts[3], 10, {from: accounts[2]});
         assert.isTrue(isSuccessfulTransfer);
 
         const freezeTx = await multisig_admin.toggleFreeze(accounts[2], true, 0, {from: adminAddress1});
@@ -193,6 +193,9 @@ contract("SlicToken", (accounts) => {
         assert.isTrue(isFrozen);
 
         isSuccessfulTransfer = await slic_main.transfer.call(accounts[3], 1, {from: accounts[2]});
+        assert.isFalse(isSuccessfulTransfer);
+
+        isSuccessfulTransfer = await slic_main.transfer.call(accounts[2], 3, {from: accounts[3]});
         assert.isFalse(isSuccessfulTransfer);
     });
 
