@@ -386,76 +386,12 @@ contract ERC20Detailed is ERC20 {
     }
 }
 
-contract ERC20Traceable is ERC20Detailed {
-    address[] internal holdersSet;
-    mapping(address => uint256) internal holdersIndices;
-
-    function _traceRecipient(address to, uint256 value) internal {
-        if(value != 0 && holdersIndices[to] == 0) {
-            holdersSet.push(to);
-            holdersIndices[to] = holdersSet.length;
-        }
-    }
-
-    function _traceSender(address from, uint256 value) internal {
-        if(balanceOf(from) == value) {
-            uint256 senderIndex = holdersIndices[from];
-            if(senderIndex != 0) {
-                if(senderIndex < holdersSet.length) {
-                    address lastHolder = holdersSet[holdersSet.length - 1];
-                    holdersSet[senderIndex - 1] = lastHolder;
-                    holdersIndices[lastHolder] = senderIndex;
-                }
-                delete holdersSet[holdersSet.length - 1];
-                holdersSet.length = holdersSet.length - 1;
-                holdersIndices[from] = 0;
-            }
-        }
-    }
-
-    function _trace(address from, address to, uint256 value) internal {
-        _traceRecipient(to, value);
-        if(from != address(0) && from != to) {
-            _traceSender(from, value);
-        }
-    }
-
-    function _mint(address account, uint256 value) internal {
-        _traceRecipient(account, value);
-        super._mint(account, value);
-    }
-
-    function _burn(address account, uint256 value) internal {
-        _traceSender(account, value);
-        super._burn(account, value);
-    }
-
-    function _burnFrom(address account, uint256 value) internal {
-        _traceSender(account, value);
-        super._burn(account, value);
-    }
-
-    function transferFrom(address from, address to, uint256 value) public returns (bool) {
-        _trace(from, to, value);
-        return super.transferFrom(from, to, value);
-    }
-
-    function transfer(address to, uint256 value) public returns (bool) {
-        _trace(msg.sender, to, value);
-        return super.transfer(to, value);
-    }
-
-    function getHolders() public view returns (address[] memory) {
-        return holdersSet;
-    }
-}
-
 /**
  * @title Freezable ERC20 token
  *
  * @dev All tokens are transferrable, unless token holder address is frozen by an admin.
  */
-contract FreezableToken is ERC20Traceable, AdminRole {
+contract FreezableToken is ERC20Detailed, AdminRole {
     mapping(address => bool) public frozen;
     event Freeze(address indexed account);
     event Unfreeze(address indexed account);
