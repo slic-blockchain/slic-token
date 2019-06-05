@@ -389,31 +389,63 @@ contract ERC20Detailed is ERC20 {
 /**
  * @title Freezable ERC20 token
  *
- * @dev All tokens are transferrable, unless token holder address is frozen by an admin.
+ * @dev All tokens are transferable, unless token holder address is frozen by an admin.
  */
 contract FreezableToken is ERC20Detailed, AdminRole {
     mapping(address => bool) public frozen;
     event Freeze(address indexed account);
     event Unfreeze(address indexed account);
 
+    /**
+     * @dev Internal function that burns an amount of the token of a given
+     * account, unless that account is frozen.
+     * @param account The account whose tokens will be burnt.
+     * @param value The amount that will be burnt.
+    */
     function _burn(address account, uint256 value) internal {
         require(!frozen[account]);
         super._burn(account, value);
     }
 
+    /**
+     * @dev Internal function that burns an amount of the token of a given
+     * account, unless that account is frozen, deducting from the sender's allowance for said account. Uses the
+     * internal burn function.
+     * Emits an Approval event (reflecting the reduced allowance).
+     * @param account The account whose tokens will be burnt.
+     * @param value The amount that will be burnt.
+    */
     function _burnFrom(address account, uint256 value) internal {
         require(!frozen[account]);
         super._burn(account, value);
     }
 
+    /**
+     * @dev Transfer tokens from one address to another.
+     * @param from address The address which you want to send tokens from
+     * @param to address The address which you want to transfer to
+     * @param value uint256 the amount of tokens to be transferred
+    */
     function transferFrom(address from, address to, uint256 value) public returns (bool) {
         return !frozen[from] && !frozen[to] && super.transferFrom(from, to, value);
     }
 
+    /**
+    * @dev Transfer token for a specified address
+    * @param to The address to transfer to.
+    * @param value The amount to be transferred.
+    * @return true, unless the sender or the receiver are frozen or the transfer did not happen.
+    */
     function transfer(address to, uint256 value) public returns (bool) {
         return !frozen[msg.sender] && !frozen[to] && super.transfer(to, value);
     }
 
+    /**
+    * @dev Admin-only function used to toggle the frozen status of an account.
+    * Emits a Freeze event with the account address.
+    * @param _address The address of the account.
+    * @param _setFrozen bool value if the account's frozen flag should raised.
+    */
     function toggleFreeze(address _address, bool _setFrozen) public onlyAdmin {
         if(frozen[_address] && !_setFrozen) {
             frozen[_address] = _setFrozen;
@@ -425,11 +457,31 @@ contract FreezableToken is ERC20Detailed, AdminRole {
     }
 }
 
+/**
+* @dev This contract facilitates the creation of up to 60 sub-tokens whose function is:
+*   - to allow the investors of the same deployment to be able to trade the sub-token
+*       for that particular deployment only between each other
+*   - to allow one account address to own sub-tokens from different deployments
+*   - to enable the the sub-token holders to easily track their holdings
+        through an explorer like Etherscan
+    - to facilitate a 6-month lock up period
+    - to let the sub-token holders redeem their holdings for the main-token once the
+        lock up period is over
+    - the sub-tokens holders are not eligible to receive the dividend that is paid
+        only to the main-token holders
+*/
 contract SlicDeploymentToken is ERC20Detailed {
     uint256 public unlockTime = 0;
     uint8 public id;
     address public slicToken;
 
+    /**
+    * @dev Creates the sub-token for a particular deployment. The constructor must be
+    *   called from inside the token contract so the sub-token admin functions can
+    *   later be called only by the main-token admins.
+    * @param _id The ID of the deployment, between 1 and 60.
+    * @param _mintAmount The total amount of sub-tokens to be minted.
+    */
     constructor(uint8 _id, uint256 _mintAmount) public
                 ERC20Detailed(concat("SLiC Deployment Token ", _id), concat("SLIC", _id), 18) {
         require(_id > 0 && _id <= 60, "Invalid deployment ID");
@@ -438,6 +490,12 @@ contract SlicDeploymentToken is ERC20Detailed {
         _mint(slicToken, _mintAmount);
     }
 
+    /**
+    * @dev an internal helper function used to dynamically construct the name and symbol
+    *   of the sub-tokens
+    * @param str The prefix of the result string.
+    * @param _id The suffix of the result string.
+    */
     function concat(string memory str, uint8 _id) internal pure returns (string memory) {
         uint8 digit1 = _id / 10;
         uint8 digit2 = _id % 10;
@@ -449,6 +507,12 @@ contract SlicDeploymentToken is ERC20Detailed {
         return string(newstrbytes);
     }
 
+    /**
+    * @dev A helper method facilitating the swap of sub and main tokens and the
+    *   burning of the no longer needed sub-tokens. Should not be called directly.
+    *   Fails if the lock up has not yet started or is not over yet.
+    * @param account The address of the account for which the redeem is happening.
+    */
     function redeem(address account) public {
         require(msg.sender == slicToken, "This method should not be called directly");
         require(unlockTime != 0, "Lockup countdown has not started yet");
@@ -461,6 +525,10 @@ contract SlicDeploymentToken is ERC20Detailed {
         }
     }
 
+    /**
+    * @dev An admin-only function used to initialize the lock up countdown.
+    *   Should not be called directly.
+    */
     function startLockUpCountdown() public {
         require(msg.sender == slicToken, "This method should not be called directly");
         require(unlockTime == 0, "Lockup countdown already started");
@@ -470,7 +538,8 @@ contract SlicDeploymentToken is ERC20Detailed {
 
 
 /**
- * @title MultiSigAdmin contract that does simple 2/3 multisig calls for the SLiC admin calls
+ * @title MultiSigAdmin
+ * @dev A contract that does simple 2/3 multisig calls for the SLiC admin calls
  */
 contract MultiSigAdmin {
     address public admin1;
@@ -480,11 +549,17 @@ contract MultiSigAdmin {
 
     mapping(uint256 => ActionProposal) proposalsByBlock;
 
+    /**
+    * @dev either of the three admins can perform this action
+    */
     modifier onlyAdmin() {
         require(msg.sender == admin1 || msg.sender == admin2 || msg.sender == admin3);
         _;
     }
 
+    /**
+    * @dev A struct helper storing the action, its proposer and the proposed params
+    */
     struct ActionProposal {
         uint256 actionType;
         address proposer;
@@ -492,6 +567,10 @@ contract MultiSigAdmin {
         bool boolParam;
     }
 
+    /**
+    * @dev Creates the multisig wallet contract. Should be called from the
+    *   Slic main token, not directly.
+    */
     constructor(address _admin1, address _admin2, address _admin3) public {
         admin1 = _admin1;
         admin2 = _admin2;
@@ -499,6 +578,14 @@ contract MultiSigAdmin {
         token = SlicToken(msg.sender);
     }
 
+    /**
+    * @dev Multisig wrapper for the toggleFreeze function.
+    * @param _address The address of the account.
+    * @param _setFrozen bool value if the account's frozen flag should raised.
+    * @param _proposalBlock Should be 0 if the caller is making a new proposal
+    *   and if confirming a proposal, should be the number of the block at which
+    *   the proposer made their action proposal.
+    */
     function toggleFreeze(address _address, bool _setFrozen, uint256 _proposalBlock) public onlyAdmin {
         if(_proposalBlock != 0) {
             ActionProposal memory action = proposalsByBlock[_proposalBlock];
@@ -516,6 +603,13 @@ contract MultiSigAdmin {
         }
     }
 
+    /**
+    * @dev Multisig wrapper for the recoverERC20Tokens function.
+    * @param _address The address of the ERC20 token contract.
+    * @param _proposalBlock Should be 0 if the caller is making a new proposal
+    *   and if confirming a proposal, should be the number of the block at which
+    *   the proposer made their action proposal.
+    */
     function recoverERC20Tokens(address _address, uint256 _proposalBlock) public onlyAdmin {
         if(_proposalBlock != 0) {
             ActionProposal memory action = proposalsByBlock[_proposalBlock];
@@ -534,6 +628,14 @@ contract MultiSigAdmin {
         }
     }
 
+    /**
+    * @dev Multisig wrapper for the addAdmin function.
+    * @param _address The address of the address that will NOT be added as a multisig admin,
+    *   it is rather added as an independent admin along the multisig wallet.
+    * @param _proposalBlock Should be 0 if the caller is making a new proposal
+    *   and if confirming a proposal, should be the number of the block at which
+    *   the proposer made their action proposal.
+    */
     function addAdmin(address _address, uint256 _proposalBlock) public onlyAdmin {
         if(_proposalBlock != 0) {
             ActionProposal memory action = proposalsByBlock[_proposalBlock];
@@ -551,6 +653,14 @@ contract MultiSigAdmin {
         }
     }
 
+    /**
+    * @dev Multisig wrapper for the renounceAdmin function.
+    *   WARNING: This is like a self-destruct function for the multisig admin wallet!
+    *
+    * @param _proposalBlock Should be 0 if the caller is making a new proposal
+    *   and if confirming a proposal, should be the number of the block at which
+    *   the proposer made their action proposal.
+    */
     function renounceAdmin(uint256 _proposalBlock) public onlyAdmin {
         if(_proposalBlock != 0) {
             ActionProposal memory action = proposalsByBlock[_proposalBlock];
@@ -569,6 +679,7 @@ contract MultiSigAdmin {
 
 /**
  * @title SLiC token
+ * @dev The main token.
  */
 contract SlicToken is FreezableToken {
     mapping(uint8 => SlicDeploymentToken) public deploymentTokens;
@@ -583,6 +694,11 @@ contract SlicToken is FreezableToken {
         _;
     }
 
+    /**
+    * @dev Creates the main token and the multisig wallet. Should be called by the ICO manager.
+    * @param _admin1, _admin2, _admin3 The addresses of the three accounts of the
+    *   multisig admin wallet.
+    */
     constructor(address _admin1, address _admin2, address _admin3) public ERC20Detailed("SLiC", "SLIC", 18) {
         require(_admin1 != address(0), "null admin1 address");
         require(_admin2 != address(0), "null admin2 address");
@@ -596,12 +712,23 @@ contract SlicToken is FreezableToken {
         icoManager = msg.sender;
     }
 
+    /**
+    * @dev Initializes the multisig admin with the three addresses supplied at the creation
+    *   of this token contract. Cannot be called a second time unless the ICO manager address
+    *   is given admin role again. Calling it a second time creates an identical multisig wallet
+    *   with the same initial three admin addresses.
+    */
     function initMultisigAdmin() public onlyIcoManager {
         multiSigAdmin = new MultiSigAdmin(admin1, admin2, admin3);
         addAdmin(address(multiSigAdmin));
         renounceAdmin();
     }
 
+    /**
+    * @dev An ICO manager-only function used to sequentially create the deployment sub-tokens.
+    *   The number of tokens per sub-tokens is defined by the following table.
+    * @param deploymentId a number between 1 and 60
+    */
     function createDeploymentToken(uint8 deploymentId) public onlyIcoManager {
         require(deploymentId > 0 && deploymentId <= 60, "Invalid deployment ID");
         require(address(deploymentTokens[deploymentId]) == address(0), "Deployment already created");
@@ -624,22 +751,46 @@ contract SlicToken is FreezableToken {
         _mint(address(deploymentTokens[deploymentId]), mintAmount);
     }
 
+    /**
+    * @dev A user function that lets them redeem the sub-tokens for the main token.
+    * @param deploymentId the ID of the deployment sub-token
+    */
     function redeemUnlockedTokens(uint8 deploymentId) public {
         deploymentTokens[deploymentId].redeem(msg.sender);
     }
 
+    /**
+    * @dev An ICO manager-only function that lets the ICO manager redeem the sub-tokens on behalf
+    *   of a specific user.
+    * @param deploymentId the ID of the deployment sub-token
+    * @param account The address of the user account on the behalf of which the tokens are redeemed
+    */
     function forceRedeemUnlockedTokens(uint8 deploymentId, address account) public onlyIcoManager {
         deploymentTokens[deploymentId].redeem(account);
     }
 
+    /**
+    * @dev An ICO manager-only function that lets the ICO manager distribute the already minted
+    *   sub-tokens to the investors.
+    */
     function distribute(address to, uint256 amount, uint8 deploymentId) public onlyIcoManager {
         deploymentTokens[deploymentId].transfer(to, amount);
     }
 
+    /**
+    * @dev An ICO manager-only function that lets the ICO manager start the lock up countdown
+    *   for a deployment whose hard cap was reached.
+    * @param deploymentId the ID of the deployment sub-token
+    */
     function startLockUpCountdown(uint8 deploymentId) public onlyIcoManager {
         deploymentTokens[deploymentId].startLockUpCountdown();
     }
 
+    /**
+    * @dev An admin-only function that lets the admin extract any mistakenly sent tokens to this
+    * smart contract address.
+    * @param _contractAddress The address of the ERC20 token contract.
+    */
     function recoverERC20Tokens(address _contractAddress) public onlyAdmin {
         IERC20 erc20Token = IERC20(_contractAddress);
         require(erc20Token.transfer(msg.sender, erc20Token.balanceOf(address(this))), "Token transfer/recovery failed");
