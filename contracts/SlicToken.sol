@@ -726,7 +726,7 @@ contract SlicToken is FreezableToken {
 
     /**
     * @dev An ICO manager-only function used to sequentially create the deployment sub-tokens.
-    *   The number of tokens per sub-tokens is defined by the following table.
+    *   The number of tokens per sub-tokens is defined in the table in the README.md file.
     * @param deploymentId a number between 1 and 60
     */
     function createDeploymentToken(uint8 deploymentId) public onlyIcoManager {
