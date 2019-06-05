@@ -460,7 +460,7 @@ contract FreezableToken is ERC20Detailed, AdminRole {
 /**
 * @dev This contract facilitates the creation of up to 60 sub-tokens whose function is:
 *   - to allow the investors of the same deployment to be able to trade the sub-token
-*       for that particular deployment only between each other
+*       for that particular deployment only for tokens of the same sub-token
 *   - to allow one account address to own sub-tokens from different deployments
 *   - to enable the the sub-token holders to easily track their holdings
         through an explorer like Etherscan
